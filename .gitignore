@@ -1,0 +1,26 @@
+# Environnement virtuel
+venv/
+.venv/
+
+# Caches Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Fichiers de configuration de l'IDE
+.vscode/
+.idea/
+.ropeproject/
+
+# Secrets et configuration locale — ne doivent jamais être commités
+.envrc
+.env
+secrets/
+
+# Logs et fichiers temporaires
+*.log
+
+# Divers OS
+.DS_Store

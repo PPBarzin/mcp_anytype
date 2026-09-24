@@ -1,0 +1,26 @@
+# Ignorer l'environnement virtuel
+venv
+.venv
+
+# Ignorer les caches Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignorer les fichiers de configuration de l'IDE
+.vscode
+.idea
+.ropeproject
+
+# Ignorer le fichier .envrc qui contient des variables locales.
+# Les secrets et la configuration doivent être passés à l'environnement Docker.
+.envrc
+
+# Ignorer les secrets locaux (montés en volume dans /run/secrets, jamais copiés dans l'image)
+secrets/
+
+# Ignorer les logs et les fichiers temporaires de l'agent
+*.log
+.gemini/
+.env
