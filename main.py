@@ -36,14 +36,14 @@ for method_name, method_coro in client_methods:
     # Utiliser la description du JSON si disponible, sinon le docstring
     description = tools_map.get(tool_name_kebab, method_coro.__doc__ or "No description available.")
 
-    # Pour RAGFlow, l'outil de recherche principal doit s'appeler 'search'
+    # Convention search/fetch (pattern RAG classique) : l'outil de recherche principal s'appelle 'search'
     if method_name == "search_global":
         tools.append(Tool.from_function(fn=method_coro, name="search", description=description))
     else:
         # Les autres outils gardent leur nom API
         tools.append(Tool.from_function(fn=method_coro, name=tool_name_kebab, description=description))
 
-# Ajout de l'outil 'fetch' qui est essentiel pour RAGFlow
+# Ajout de l'outil 'fetch' (pattern search/fetch classique pour les systèmes RAG)
 fetch_description = "Retrieve the full content of a search result document using its composite ID (e.g., 'space_id/object_id')."
 tools.append(
     Tool.from_function(
@@ -64,7 +64,7 @@ mcp_server = FastMCP(
 app = FastAPI(
     title="Serveur MCP pour Anytype",
     version="2.1.0", # Version incrémentée
-    description="Un serveur MCP pour connecter RAGFlow à Anytype, basé sur le schéma d'API officiel chargé depuis tools.json.",
+    description="Un serveur MCP centralisé pour interagir avec Anytype, basé sur le schéma d'API officiel chargé depuis tools.json.",
     lifespan=lambda _app: mcp_server.session_manager.run(),
 )
 

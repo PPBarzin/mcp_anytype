@@ -22,7 +22,6 @@ class Settings(BaseSettings):
     anytype_api_url: str
     anytype_auth_token: str
     anytype_version: str
-    ragflow_auth_token: str = ""
 
 # --- 3. On initialise la configuration en utilisant notre nouvelle fonction ---
 # Les valeurs par défaut sont celles extraites de votre configuration,
