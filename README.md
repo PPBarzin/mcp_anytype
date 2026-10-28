@@ -13,10 +13,14 @@ Le serveur expose l'API Anytype sous forme de 53 outils, organisés en 11 catég
 
 **Note sur la suppression** : l'API Anytype "supprime" un objet/property/tag/type en l'archivant (`archived: true`), ce n'est pas une suppression définitive. Autre particularité observée : la réponse immédiate d'un appel `delete-*` peut encore afficher `archived: false` — un `get-*` juste après confirme le vrai état.
 
+**Pagination sur `search-global`/`search-space`** : bug corrigé — ces deux endpoints sont en `POST`, mais l'API Anytype attend `offset`/`limit` en **query string**, pas dans le corps JSON (vérifié empiriquement : silencieusement ignorés sinon, toujours la première page renvoyée). `list-objects` (en `GET`) n'était pas affecté.
+
+**Paramètre `compact`** : disponible sur `search-global`, `search-space`, `list-objects` et `get-object` (`compact: boolean`, défaut `false`). Réduit chaque objet à `{id, name, type, space_id, last_modified_date}` (+ `markdown` pour `get-object`), au lieu de réembarquer l'intégralité du schéma de type/propriétés à chaque élément. Mesuré : jusqu'à **93% de réduction** de taille sur une liste de 10 objets, utile quand on liste/recherche beaucoup d'objets et qu'on n'a pas besoin des métadonnées complètes.
+
 ### 1. Recherche et récupération (pattern RAG classique)
 Convention `search` / `fetch` utile pour tout système qui suit le modèle "chercher puis récupérer le détail" (RAG, agents génériques, etc.).
 
-- **`search`** (`search-global`) : Recherche des objets dans tous les "spaces".
+- **`search`** (`search-global`) : Recherche des objets dans tous les "spaces". Supporte `compact`.
 - **`fetch`** : Récupère le contenu complet d'un objet à partir d'un ID composite (`space_id/object_id`) fourni par l'outil de recherche.
 
 ### 2. Gestion des "Spaces"
@@ -26,12 +30,12 @@ Convention `search` / `fetch` utile pour tout système qui suit le modèle "cher
 - **`update-space`**: Met à jour le nom ou la description d'un "space".
 
 ### 3. Gestion des Objets
-- **`list-objects`**: Liste les objets au sein d'un "space" donné.
+- **`list-objects`**: Liste les objets au sein d'un "space" donné. Supporte `compact`.
 - **`create-object`**: Crée un nouvel objet (page, tâche, etc.) dans un "space".
-- **`get-object`**: Récupère un objet spécifique par son ID.
+- **`get-object`**: Récupère un objet spécifique par son ID. Supporte `compact`.
 - **`update-object`**: Met à jour les propriétés d'un objet existant (⚠️ ne permet pas de modifier le corps/contenu d'un objet existant — l'API l'accepte silencieusement sans l'appliquer ; il faut recréer un objet pour changer son contenu).
 - **`delete-object`**: Archive (supprime) un objet.
-- **`search-space`**: Recherche des objets à l'intérieur d'un "space" spécifique.
+- **`search-space`**: Recherche des objets à l'intérieur d'un "space" spécifique. Supporte `compact`.
 
 ### 4. Gestion des "Lists" (Collections & Sets)
 - **`add-list-objects`**: Ajoute des objets à une "list" (collection ou set).

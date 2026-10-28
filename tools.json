@@ -87,6 +87,11 @@
             "items": {
               "type": "string"
             }
+          },
+          "compact": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, return a reduced set of fields per object (id, name, type, space_id, last_modified_date) instead of the full object with its complete type/property schema — drastically reduces payload size for large result sets"
           }
         },
         "required": []
@@ -343,6 +348,11 @@
             "type": "integer",
             "default": 100,
             "description": "The number of items to return"
+          },
+          "compact": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, return a reduced set of fields per object (id, name, type, space_id, last_modified_date) instead of the full object with its complete type/property schema — drastically reduces payload size for large result sets"
           }
         },
         "required": ["space_id"]
@@ -492,6 +502,11 @@
             "enum": ["md"],
             "default": "\"md\"",
             "description": "The format to return the object body in"
+          },
+          "compact": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, return a reduced set of fields (id, name, type, space_id, last_modified_date, markdown) instead of the full object with its complete type/property schema"
           }
         },
         "required": ["space_id", "object_id"]
@@ -963,6 +978,11 @@
             "items": {
               "type": "string"
             }
+          },
+          "compact": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, return a reduced set of fields per object (id, name, type, space_id, last_modified_date) instead of the full object with its complete type/property schema — drastically reduces payload size for large result sets"
           }
         },
         "required": ["space_id"]

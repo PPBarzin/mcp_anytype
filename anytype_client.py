@@ -45,8 +45,9 @@ class AnytypeClient:
 
     async def _call_tool_endpoint(self, tool_name: str, method: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """Méthode générique pour appeler un endpoint basé sur le nom de l'outil."""
-        # Nettoyage des paramètres non envoyés ('self' fuite de locals() dans les méthodes d'instance)
-        request_params = {k: v for k, v in params.items() if v is not None and k != 'self'}
+        # Nettoyage des paramètres non envoyés ('self' fuite de locals() dans les méthodes d'instance ;
+        # 'compact' est géré côté client après coup, jamais transmis à l'API Anytype)
+        request_params = {k: v for k, v in params.items() if v is not None and k not in ('self', 'compact')}
 
         # Logique de mapping de nom d'outil à endpoint
         # Ceci est une heuristique et pourrait nécessiter des ajustements
@@ -111,7 +112,34 @@ class AnytypeClient:
         if method in ("GET", "DELETE"):
             return await self._request(method, endpoint, params=remaining_params)
 
+        # search-global/search-space sont en POST mais l'API attend offset/limit en query string,
+        # pas dans le corps JSON (vérifié empiriquement : ignorés silencieusement sinon).
+        if tool_name in ("search-global", "search-space"):
+            query_params = {k: v for k, v in remaining_params.items() if k in ("offset", "limit")}
+            body_params = {k: v for k, v in remaining_params.items() if k not in ("offset", "limit")}
+            return await self._request(method, endpoint, params=query_params, json=body_params)
+
         return await self._request(method, endpoint, json=remaining_params)
+
+    @staticmethod
+    def _compact_object(obj: Dict[str, Any], include_markdown: bool = False) -> Dict[str, Any]:
+        """Réduit un objet Anytype à ses champs essentiels (id, nom, type, space, date),
+        pour éviter de réembarquer l'intégralité du schéma de type à chaque élément d'une liste."""
+        last_modified = None
+        for prop in obj.get("properties", []) or []:
+            if prop.get("key") == "last_modified_date":
+                last_modified = prop.get("date")
+                break
+        compact = {
+            "id": obj.get("id"),
+            "name": obj.get("name"),
+            "type": (obj.get("type") or {}).get("key"),
+            "space_id": obj.get("space_id"),
+            "last_modified_date": last_modified,
+        }
+        if include_markdown:
+            compact["markdown"] = obj.get("markdown")
+        return compact
 
     # --- Implémentation de chaque outil ---
 
@@ -128,13 +156,15 @@ class AnytypeClient:
         """
         return await self._call_tool_endpoint("create-api-key", "POST", locals())
 
-    async def search_global(self, query: Optional[str] = None, offset: int = 0, limit: int = 100, sort: Optional[Dict] = None, types: Optional[List[str]] = None) -> Dict[str, Any]:
+    async def search_global(self, query: Optional[str] = None, offset: int = 0, limit: int = 100, sort: Optional[Dict] = None, types: Optional[List[str]] = None, compact: Optional[bool] = False) -> Dict[str, Any]:
         results = await self._call_tool_endpoint("search-global", "POST", locals())
         # Ajout de l'ID composite (space_id/object_id) pour que 'fetch' puisse retrouver l'objet
         if "data" in results and isinstance(results["data"], list):
             for item in results["data"]:
                 if "id" in item and "space_id" in item:
                     item["id"] = f"{item['space_id']}/{item['id']}"
+            if compact:
+                results["data"] = [self._compact_object(o) for o in results["data"]]
         return results
 
     async def list_spaces(self, offset: int = 0, limit: int = 100) -> Dict[str, Any]:
@@ -167,14 +197,20 @@ class AnytypeClient:
     async def get_member(self, space_id: str, member_id: str) -> Dict[str, Any]:
         return await self._call_tool_endpoint("get-member", "GET", locals())
 
-    async def list_objects(self, space_id: str, offset: int = 0, limit: int = 100) -> Dict[str, Any]:
-        return await self._call_tool_endpoint("list-objects", "GET", locals())
+    async def list_objects(self, space_id: str, offset: int = 0, limit: int = 100, compact: Optional[bool] = False) -> Dict[str, Any]:
+        results = await self._call_tool_endpoint("list-objects", "GET", locals())
+        if compact and isinstance(results.get("data"), list):
+            results["data"] = [self._compact_object(o) for o in results["data"]]
+        return results
 
     async def create_object(self, space_id: str, type_key: str, body: Optional[str] = None, icon: Optional[Dict] = None, name: Optional[str] = None, properties: Optional[List[Dict]] = None, template_id: Optional[str] = None) -> Dict[str, Any]:
         return await self._call_tool_endpoint("create-object", "POST", locals())
 
-    async def get_object(self, space_id: str, object_id: str, format: str = "md") -> Dict[str, Any]:
-        return await self._call_tool_endpoint("get-object", "GET", locals())
+    async def get_object(self, space_id: str, object_id: str, format: str = "md", compact: Optional[bool] = False) -> Dict[str, Any]:
+        results = await self._call_tool_endpoint("get-object", "GET", locals())
+        if compact and isinstance(results.get("object"), dict):
+            results["object"] = self._compact_object(results["object"], include_markdown=True)
+        return results
 
     async def update_object(self, space_id: str, object_id: str, icon: Optional[Dict] = None, name: Optional[str] = None, properties: Optional[List[Dict]] = None) -> Dict[str, Any]:
         return await self._call_tool_endpoint("update-object", "PATCH", locals())
@@ -212,8 +248,11 @@ class AnytypeClient:
     async def delete_tag(self, space_id: str, property_id: str, tag_id: str) -> Dict[str, Any]:
         return await self._call_tool_endpoint("delete-tag", "DELETE", locals())
 
-    async def search_space(self, space_id: str, query: Optional[str] = None, offset: int = 0, limit: int = 100, sort: Optional[Dict] = None, types: Optional[List[str]] = None) -> Dict[str, Any]:
-        return await self._call_tool_endpoint("search-space", "POST", locals())
+    async def search_space(self, space_id: str, query: Optional[str] = None, offset: int = 0, limit: int = 100, sort: Optional[Dict] = None, types: Optional[List[str]] = None, compact: Optional[bool] = False) -> Dict[str, Any]:
+        results = await self._call_tool_endpoint("search-space", "POST", locals())
+        if compact and isinstance(results.get("data"), list):
+            results["data"] = [self._compact_object(o) for o in results["data"]]
+        return results
 
     async def list_types(self, space_id: str, offset: int = 0, limit: int = 100) -> Dict[str, Any]:
         return await self._call_tool_endpoint("list-types", "GET", locals())
