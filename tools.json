@@ -1537,6 +1537,97 @@
         },
         "required": ["space_id", "chat_id"]
       }
+    },
+    {
+      "name": "get-object-blocks",
+      "description": "Get object blocks (API v2 - pre-release)\nReturns the full AnyBlock v2 structure of an object: its blocks array with stable short ids, block types and text content — required to target update-block/move-block by block_id, or to find the exact current text to pass as 'match'.\nNote: this uses the pre-release Anytype API v2, which can change without a new API version.\nError Responses:\n401: Unauthorized\n404: Resource not found\n500: Internal server error",
+      "inputSchema": {
+        "$defs": {},
+        "type": "object",
+        "properties": {
+          "space_id": {
+            "type": "string",
+            "description": "The ID of the space in which the object exists; must be retrieved from ListSpaces endpoint"
+          },
+          "object_id": {
+            "type": "string",
+            "description": "The ID of the object to retrieve the block structure for"
+          }
+        },
+        "required": ["space_id", "object_id"]
+      }
+    },
+    {
+      "name": "update-block",
+      "description": "Update block (API v2 - pre-release)\nReplaces one or more fields of an existing block (e.g. its full text content, or a checkbox's checked state) — unlike update-object (v1), this actually changes page content. Found by block_id OR by match (the block's exact current text); provide exactly one of the two, never both. Use get-object-blocks first to find the target block_id or its exact text.\nNote: this uses the pre-release Anytype API v2, which can change without a new API version.\nError Responses:\n400: Bad request\n401: Unauthorized\n404: Resource not found\n500: Internal server error",
+      "inputSchema": {
+        "$defs": {},
+        "type": "object",
+        "properties": {
+          "space_id": {
+            "type": "string",
+            "description": "The ID of the space in which the object exists; must be retrieved from ListSpaces endpoint"
+          },
+          "object_id": {
+            "type": "string",
+            "description": "The ID of the object whose block to update"
+          },
+          "block_id": {
+            "type": "string",
+            "description": "The id of the block to update (full id or unique suffix, from get-object-blocks). Provide this or match, never both."
+          },
+          "match": {
+            "type": "string",
+            "description": "The exact current text of the block to update, used to locate it instead of block_id. Must match exactly one block. Provide this or block_id, never both."
+          },
+          "set": {
+            "type": "object",
+            "description": "Fields to change on the block, merge semantics: only the named fields change (e.g. {\"text\": \"new content\"} or {\"checked\": true}). A null value clears that field.",
+            "additionalProperties": true
+          }
+        },
+        "required": ["space_id", "object_id", "set"]
+      }
+    },
+    {
+      "name": "move-block",
+      "description": "Move block (API v2 - pre-release)\nMoves a block, and its whole subtree, to a new place in the document: just before/after another block, inside a container block, or to the start/end of the document (or of the 'inside' container) via position.\nNote: this uses the pre-release Anytype API v2, which can change without a new API version.\nError Responses:\n400: Bad request\n401: Unauthorized\n404: Resource not found\n500: Internal server error",
+      "inputSchema": {
+        "$defs": {},
+        "type": "object",
+        "properties": {
+          "space_id": {
+            "type": "string",
+            "description": "The ID of the space in which the object exists; must be retrieved from ListSpaces endpoint"
+          },
+          "object_id": {
+            "type": "string",
+            "description": "The ID of the object whose block to move"
+          },
+          "block_id": {
+            "type": "string",
+            "description": "The id of the block to move, along with its whole subtree"
+          },
+          "before": {
+            "type": "string",
+            "description": "Move the block to just before this block id"
+          },
+          "after": {
+            "type": "string",
+            "description": "Move the block to just after this block id"
+          },
+          "inside": {
+            "type": "string",
+            "description": "Move the block inside this container block id (as its last child, or first/last per 'position')"
+          },
+          "position": {
+            "type": "string",
+            "enum": ["first", "last"],
+            "description": "Which end to move to — of the 'inside' container if given, otherwise of the document itself (default either way)"
+          }
+        },
+        "required": ["space_id", "object_id", "block_id"]
+      }
     }
   ]
 }

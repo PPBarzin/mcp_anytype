@@ -9,7 +9,7 @@ L'intérêt de centraliser via ce serveur plutôt que de connecter chaque client
 
 ## Fonctionnalités
 
-Le serveur expose l'API Anytype sous forme de 53 outils, organisés en 11 catégories. **Couverture complète : 52/52 opérations du spec officiel v1** (2025-11-08).
+Le serveur expose l'API Anytype sous forme de 56 outils, organisés en 12 catégories. **Couverture complète : 52/52 opérations du spec officiel v1** (2025-11-08), plus 3 outils ciblés sur l'**API v2** (pré-release) pour l'édition réelle de contenu — voir catégorie 12.
 
 **Note sur la suppression** : l'API Anytype "supprime" un objet/property/tag/type en l'archivant (`archived: true`), ce n'est pas une suppression définitive. Autre particularité observée : la réponse immédiate d'un appel `delete-*` peut encore afficher `archived: false` — un `get-*` juste après confirme le vrai état.
 
@@ -33,7 +33,7 @@ Convention `search` / `fetch` utile pour tout système qui suit le modèle "cher
 - **`list-objects`**: Liste les objets au sein d'un "space" donné. Supporte `compact`.
 - **`create-object`**: Crée un nouvel objet (page, tâche, etc.) dans un "space".
 - **`get-object`**: Récupère un objet spécifique par son ID. Supporte `compact`.
-- **`update-object`**: Met à jour les propriétés d'un objet existant (⚠️ ne permet pas de modifier le corps/contenu d'un objet existant — l'API l'accepte silencieusement sans l'appliquer ; il faut recréer un objet pour changer son contenu).
+- **`update-object`**: Met à jour les propriétés d'un objet existant (⚠️ ne permet pas de modifier le corps/contenu d'un objet existant — l'API v1 l'accepte silencieusement sans l'appliquer. Pour éditer du contenu en place, voir `update-block` / `move-block`, catégorie 12).
 - **`delete-object`**: Archive (supprime) un objet.
 - **`search-space`**: Recherche des objets à l'intérieur d'un "space" spécifique. Supporte `compact`.
 
@@ -93,6 +93,16 @@ Convention `search` / `fetch` utile pour tout système qui suit le modèle "cher
 - **`read-chat-reactions`**: Marque des réactions comme lues.
 - **`read-all-chat-messages`**: Marque tout le chat comme lu.
 - **`chat-message-stream`**: ⚠️ Version **bornée** du flux SSE officiel — MCP fonctionne en requête/réponse, pas en abonnement persistant. Écoute pendant `timeout_seconds` (défaut 10s, max 60s) puis retourne les événements reçus durant cette fenêtre ; ce n'est pas un flux continu tant que l'outil n'est pas rappelé.
+
+### 12. Édition de contenu (API v2 — pré-release)
+
+⚠️ Ces 3 outils tapent sur l'**API v2** d'Anytype (pré-release, pas de header `Anytype-Version`, peut changer sans préavis), pas sur v1 comme le reste du serveur — dépendance mixte assumée pour l'instant, faute d'équivalent v1. C'est la vraie réponse à la limitation d'`update-object` (catégorie 3) : contrairement à v1, ça modifie réellement le contenu existant d'une page.
+
+- **`get-object-blocks`**: Récupère la structure complète en blocs d'un objet (chaque bloc a un id court stable, un type, et son texte) — préalable indispensable pour cibler `update-block`/`move-block`.
+- **`update-block`**: Remplace un ou plusieurs champs d'un bloc existant (typiquement son texte), ciblé par `block_id` (trouvé via `get-object-blocks`) ou par `match` (le texte exact actuel du bloc, doit matcher un seul bloc) — fournir l'un des deux, jamais les deux.
+- **`move-block`**: Déplace un bloc (et son sous-arbre) ailleurs dans le document : avant/après un autre bloc, à l'intérieur d'un conteneur, ou au début/à la fin.
+
+Testé en conditions réelles : remplacement complet du texte d'un bloc (par id et par correspondance de texte), réordonnancement de blocs, erreurs de validation (`block_id`/`match` manquants ou fournis ensemble) — tout confirmé fonctionnel. Limite connue : impossible pour l'instant d'**ajouter** de nouveaux blocs via v2 (`add_block`/`create_block`/`insert_block` renvoient tous 404 à ce jour) — seuls le remplacement et le déplacement de blocs existants sont supportés ; pour ajouter du contenu, il faut toujours recréer un objet (`create-object`).
 
 ## Transports exposés
 
@@ -234,16 +244,11 @@ Dès que ce dossier est présent, le plugin est activé automatiquement pour ce 
 
 ## Évolutions futures
 
-### Édition de contenu via l'API v2 (pas encore implémenté)
+### API v2 : ce qui reste à faire
 
-`update-object` ne permet pas de modifier le contenu (`body`) d'un objet existant — limitation confirmée de l'API v1 (le champ est accepté silencieusement mais jamais appliqué). Contournement actuel : recréer un objet plutôt que d'éditer l'existant.
+L'édition de contenu (catégorie 12) est implémentée via `update_block`/`move_block`. Pistes non retenues pour l'instant, faute de besoin confirmé :
+- **`replace_text`** (chercher/remplacer précis dans un bloc, sans avoir à repasser tout le texte) — déjà validé empiriquement, pas encore exposé comme outil ; complémentaire à `update-block` pour des corrections ponctuelles sur de longs blocs.
+- **`add_property`** — déjà validé empiriquement (voir historique du projet), pas encore exposé comme outil.
+- **Ajout de nouveaux blocs** — `add_block`/`create_block`/`insert_block` renvoient tous `404` à ce jour ; dès qu'Anytype les active, ça permettrait d'ajouter du contenu à une page existante sans recréer d'objet.
 
-Anytype expose en parallèle une **API v2** (pré-release, déjà active sur les instances à jour) qui permet une vraie édition de contenu via des opérations structurées, par ex. `PATCH /v2/spaces/{space_id}/objects/{object_id}` avec `{"ops":[{"op":"replace_text","find":"...","replace":"..."}]}`. Testé manuellement avec succès (remplacement de texte appliqué et persistant, relu ensuite via `get-object` v1).
-
-Limites à connaître avant d'implémenter un outil dessus :
-- C'est un **chercher/remplacer** précis (le texte à trouver doit matcher exactement une fois dans un bloc), pas un remplacement complet du contenu comme le `body` de `create-object`.
-- **v2 est officiellement pré-release**, sans header `Anytype-Version` (donc pas de garantie de compatibilité dans le temps), et peut changer sans préavis selon la doc officielle d'Anyproto.
-- Seules 2 opérations ont été confirmées disponibles à ce jour (`replace_text`, `add_property`) — la liste complète des opérations v2 n'a pas été explorée.
-- Introduirait une dépendance mixte v1/v2 dans un serveur aujourd'hui entièrement v1.
-
-À évaluer si le besoin d'éditer du contenu en place devient récurrent.
+La liste complète des opérations v2 n'a pas été explorée de façon exhaustive — seules celles mentionnées ici et dans la catégorie 12 ont été confirmées disponibles. À revisiter périodiquement (sondage de `/v2/schemas/ops/<nom>`) vu qu'Anytype ajoute des opérations sans annonce systématique.

@@ -218,6 +218,51 @@ class AnytypeClient:
     async def delete_object(self, space_id: str, object_id: str) -> Dict[str, Any]:
         return await self._call_tool_endpoint("delete-object", "DELETE", locals())
 
+    async def get_object_blocks(self, space_id: str, object_id: str) -> Dict[str, Any]:
+        """
+        [API v2 - pré-release] Récupère la structure complète en blocs d'un objet (AnyBlock v2) :
+        chaque bloc a un id court stable, un type et son texte. Nécessaire pour cibler
+        update-block/move-block par block_id (ou pour retrouver le texte exact à passer en 'match').
+        """
+        endpoint = f"/v2/spaces/{space_id}/objects/{object_id}"
+        return await self._request("GET", endpoint)
+
+    async def update_block(self, space_id: str, object_id: str, set: Dict[str, Any], block_id: Optional[str] = None, match: Optional[str] = None) -> Dict[str, Any]:
+        """
+        [API v2 - pré-release] Modifie des champs d'un bloc existant (ex: remplacer entièrement son
+        texte) — contrairement à update-object (v1), ça change réellement le contenu de la page.
+        Cible le bloc par block_id OU par match (texte exact actuel du bloc, doit matcher un seul
+        bloc) : fournir exactement l'un des deux, jamais les deux. Utiliser get-object-blocks pour
+        trouver le block_id ou le texte exact.
+        """
+        if (block_id is None) == (match is None):
+            return {"error": "Fournir exactement un des deux paramètres : block_id ou match (jamais les deux, jamais aucun)."}
+        op: Dict[str, Any] = {"op": "update_block", "set": set}
+        if block_id is not None:
+            op["id"] = block_id
+        else:
+            op["match"] = match
+        endpoint = f"/v2/spaces/{space_id}/objects/{object_id}"
+        return await self._request("PATCH", endpoint, json={"ops": [op]})
+
+    async def move_block(self, space_id: str, object_id: str, block_id: str, before: Optional[str] = None, after: Optional[str] = None, inside: Optional[str] = None, position: Optional[str] = None) -> Dict[str, Any]:
+        """
+        [API v2 - pré-release] Déplace un bloc (et son sous-arbre) ailleurs dans le document :
+        juste avant/après un autre bloc (before/after), à l'intérieur d'un bloc conteneur (inside),
+        ou au début/à la fin du document ou du conteneur (position: "first"/"last").
+        """
+        op: Dict[str, Any] = {"op": "move_block", "id": block_id}
+        if before is not None:
+            op["before"] = before
+        if after is not None:
+            op["after"] = after
+        if inside is not None:
+            op["inside"] = inside
+        if position is not None:
+            op["position"] = position
+        endpoint = f"/v2/spaces/{space_id}/objects/{object_id}"
+        return await self._request("PATCH", endpoint, json={"ops": [op]})
+
     async def list_properties(self, space_id: str, offset: int = 0, limit: int = 100) -> Dict[str, Any]:
         return await self._call_tool_endpoint("list-properties", "GET", locals())
 
