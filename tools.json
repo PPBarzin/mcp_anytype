@@ -1628,6 +1628,86 @@
         },
         "required": ["space_id", "object_id", "block_id"]
       }
+    },
+    {
+      "name": "insert-block",
+      "description": "Insert block (API v2 - pre-release)\nInserts one or more new blocks into an existing object — the real way to add content to a page (update-object in v1 cannot). Content: provide markdown (parsed into blocks — headings, lists, checkboxes, quotes, fences, tables...) OR blocks (a list of structured block objects), never both. Position: at most one of after/before/inside; if none given, inserts at the end of the document (or the start if position is \"first\"). Use get-object-blocks to find existing block ids to anchor on.\nNote: this uses the pre-release Anytype API v2, which can change without a new API version.\nError Responses:\n400: Bad request\n401: Unauthorized\n404: Resource not found\n500: Internal server error",
+      "inputSchema": {
+        "$defs": {},
+        "type": "object",
+        "properties": {
+          "space_id": {
+            "type": "string",
+            "description": "The ID of the space in which the object exists; must be retrieved from ListSpaces endpoint"
+          },
+          "object_id": {
+            "type": "string",
+            "description": "The ID of the object to insert blocks into"
+          },
+          "markdown": {
+            "type": "string",
+            "description": "Markdown content to parse into one or more new blocks. Provide this or blocks, never both."
+          },
+          "blocks": {
+            "type": "array",
+            "description": "A list of structured block objects to insert. Provide this or markdown, never both.",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "after": {
+            "type": "string",
+            "description": "Insert after this block's subtree, at its level. At most one of after/before/inside."
+          },
+          "before": {
+            "type": "string",
+            "description": "Insert before this block, at its level. At most one of after/before/inside."
+          },
+          "inside": {
+            "type": "string",
+            "description": "Insert as children of this block. At most one of after/before/inside."
+          },
+          "position": {
+            "type": "string",
+            "enum": ["first", "last"],
+            "description": "Which end to insert at when no after/before/inside is given — of the 'inside' container if given, otherwise of the document itself ('last' is the default either way)"
+          }
+        },
+        "required": ["space_id", "object_id"]
+      }
+    },
+    {
+      "name": "delete-block",
+      "description": "Delete block (API v2 - pre-release)\nDeletes an existing block, found by block_id or by its exact current text (match) — provide exactly one of the two, never both. If the block has children, recursive must be true to delete them along with it, otherwise the API refuses and reports the descendant count.\nNote: this uses the pre-release Anytype API v2, which can change without a new API version.\nError Responses:\n400: Bad request\n401: Unauthorized\n404: Resource not found\n500: Internal server error",
+      "inputSchema": {
+        "$defs": {},
+        "type": "object",
+        "properties": {
+          "space_id": {
+            "type": "string",
+            "description": "The ID of the space in which the object exists; must be retrieved from ListSpaces endpoint"
+          },
+          "object_id": {
+            "type": "string",
+            "description": "The ID of the object whose block to delete"
+          },
+          "block_id": {
+            "type": "string",
+            "description": "The id of the block to delete (full id or unique suffix, from get-object-blocks). Provide this or match, never both."
+          },
+          "match": {
+            "type": "string",
+            "description": "The exact current text of the block to delete, used to locate it instead of block_id. Must match exactly one block. Provide this or block_id, never both."
+          },
+          "recursive": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, also deletes the block's descendants. Required if the block has children."
+          }
+        },
+        "required": ["space_id", "object_id"]
+      }
     }
   ]
 }

@@ -9,7 +9,7 @@ L'intérêt de centraliser via ce serveur plutôt que de connecter chaque client
 
 ## Fonctionnalités
 
-Le serveur expose l'API Anytype sous forme de 56 outils, organisés en 12 catégories. **Couverture complète : 52/52 opérations du spec officiel v1** (2025-11-08), plus 3 outils ciblés sur l'**API v2** (pré-release) pour l'édition réelle de contenu — voir catégorie 12.
+Le serveur expose l'API Anytype sous forme de 58 outils, organisés en 12 catégories. **Couverture complète : 52/52 opérations du spec officiel v1** (2025-11-08), plus 5 outils ciblés sur l'**API v2** (pré-release) pour l'édition réelle de contenu (CRUD complet sur les blocs) — voir catégorie 12.
 
 **Note sur la suppression** : l'API Anytype "supprime" un objet/property/tag/type en l'archivant (`archived: true`), ce n'est pas une suppression définitive. Autre particularité observée : la réponse immédiate d'un appel `delete-*` peut encore afficher `archived: false` — un `get-*` juste après confirme le vrai état.
 
@@ -33,7 +33,7 @@ Convention `search` / `fetch` utile pour tout système qui suit le modèle "cher
 - **`list-objects`**: Liste les objets au sein d'un "space" donné. Supporte `compact`.
 - **`create-object`**: Crée un nouvel objet (page, tâche, etc.) dans un "space".
 - **`get-object`**: Récupère un objet spécifique par son ID. Supporte `compact`.
-- **`update-object`**: Met à jour les propriétés d'un objet existant (⚠️ ne permet pas de modifier le corps/contenu d'un objet existant — l'API v1 l'accepte silencieusement sans l'appliquer. Pour éditer du contenu en place, voir `update-block` / `move-block`, catégorie 12).
+- **`update-object`**: Met à jour les propriétés d'un objet existant (⚠️ ne permet pas de modifier le corps/contenu d'un objet existant — l'API v1 l'accepte silencieusement sans l'appliquer. Pour éditer du contenu en place, voir `insert-block` / `update-block` / `move-block` / `delete-block`, catégorie 12).
 - **`delete-object`**: Archive (supprime) un objet.
 - **`search-space`**: Recherche des objets à l'intérieur d'un "space" spécifique. Supporte `compact`.
 
@@ -96,13 +96,17 @@ Convention `search` / `fetch` utile pour tout système qui suit le modèle "cher
 
 ### 12. Édition de contenu (API v2 — pré-release)
 
-⚠️ Ces 3 outils tapent sur l'**API v2** d'Anytype (pré-release, pas de header `Anytype-Version`, peut changer sans préavis), pas sur v1 comme le reste du serveur — dépendance mixte assumée pour l'instant, faute d'équivalent v1. C'est la vraie réponse à la limitation d'`update-object` (catégorie 3) : contrairement à v1, ça modifie réellement le contenu existant d'une page.
+⚠️ Ces 5 outils tapent sur l'**API v2** d'Anytype (pré-release, pas de header `Anytype-Version`, peut changer sans préavis), pas sur v1 comme le reste du serveur — dépendance mixte assumée pour l'instant, faute d'équivalent v1. C'est la vraie réponse à la limitation d'`update-object` (catégorie 3) : contrairement à v1, ça modifie réellement le contenu existant d'une page. CRUD complet sur les blocs : créer (`insert-block`), lire (`get-object-blocks`), modifier (`update-block`), déplacer (`move-block`), supprimer (`delete-block`).
 
-- **`get-object-blocks`**: Récupère la structure complète en blocs d'un objet (chaque bloc a un id court stable, un type, et son texte) — préalable indispensable pour cibler `update-block`/`move-block`.
+- **`get-object-blocks`**: Récupère la structure complète en blocs d'un objet (chaque bloc a un id court stable, un type, et son texte) — préalable indispensable pour cibler les 4 outils suivants.
+- **`insert-block`**: Insère un ou plusieurs nouveaux blocs dans une page existante — **la vraie solution pour ajouter du contenu**, via `markdown` (titres, listes, cases à cocher, citations, tableaux...) ou `blocks` (structuré), positionné par `after`/`before`/`inside` ou en fin/début de document.
 - **`update-block`**: Remplace un ou plusieurs champs d'un bloc existant (typiquement son texte), ciblé par `block_id` (trouvé via `get-object-blocks`) ou par `match` (le texte exact actuel du bloc, doit matcher un seul bloc) — fournir l'un des deux, jamais les deux.
 - **`move-block`**: Déplace un bloc (et son sous-arbre) ailleurs dans le document : avant/après un autre bloc, à l'intérieur d'un conteneur, ou au début/à la fin.
+- **`delete-block`**: Supprime un bloc existant (ciblé par `block_id` ou `match`) ; `recursive: true` requis s'il a des blocs enfants.
 
-Testé en conditions réelles : remplacement complet du texte d'un bloc (par id et par correspondance de texte), réordonnancement de blocs, erreurs de validation (`block_id`/`match` manquants ou fournis ensemble) — tout confirmé fonctionnel. Limite connue : impossible pour l'instant d'**ajouter** de nouveaux blocs via v2 (`add_block`/`create_block`/`insert_block` renvoient tous 404 à ce jour) — seuls le remplacement et le déplacement de blocs existants sont supportés ; pour ajouter du contenu, il faut toujours recréer un objet (`create-object`).
+Testé en conditions réelles : insertion via markdown et via blocs structurés, remplacement complet du texte d'un bloc (par id et par correspondance), suppression (par id et par correspondance), réordonnancement, round-trip complet ajout→suppression confirmé identique à l'état initial, erreurs de validation (`block_id`/`match`/`markdown`/`blocks` manquants ou fournis en double) — tout confirmé fonctionnel.
+
+**Découverte (2026-11-06)** : l'API v2 expose en réalité **14 opérations** au total (contre 2 connues en septembre) — `replace_text`, `add_property`, `update_block`, `move_block`, `insert_blocks`, `delete_block`, `replace_subtree`, `set_properties`, `set_cell`, `update_view`, `insert_view`, `move_view`, `delete_view`, `add_items`, `remove_items` — ainsi qu'une surface REST v2 complète et parallèle à v1 (spaces, objects, properties, types, templates, members, files, chats, **plus de nouveaux concepts** : collections, queries, widgets, discussions, schemas auto-descriptifs). Non exploré/implémenté au-delà des 5 outils ci-dessus — voir "Évolutions futures".
 
 ## Transports exposés
 
@@ -246,9 +250,10 @@ Dès que ce dossier est présent, le plugin est activé automatiquement pour ce 
 
 ### API v2 : ce qui reste à faire
 
-L'édition de contenu (catégorie 12) est implémentée via `update_block`/`move_block`. Pistes non retenues pour l'instant, faute de besoin confirmé :
-- **`replace_text`** (chercher/remplacer précis dans un bloc, sans avoir à repasser tout le texte) — déjà validé empiriquement, pas encore exposé comme outil ; complémentaire à `update-block` pour des corrections ponctuelles sur de longs blocs.
-- **`add_property`** — déjà validé empiriquement (voir historique du projet), pas encore exposé comme outil.
-- **Ajout de nouveaux blocs** — `add_block`/`create_block`/`insert_block` renvoient tous `404` à ce jour ; dès qu'Anytype les active, ça permettrait d'ajouter du contenu à une page existante sans recréer d'objet.
+L'édition de contenu sur les blocs (catégorie 12) est maintenant complète en CRUD (`insert-block`, `get-object-blocks`, `update-block`, `move-block`, `delete-block`). Au 2026-11-06, le spec OpenAPI v2 officiel (`github.com/anyproto/anytype-api`, fichier `docs/reference/openapi-v2.yaml`) liste **14 opérations de patch** et une **surface REST v2 complète**, bien plus large que ce qu'on utilise :
 
-La liste complète des opérations v2 n'a pas été explorée de façon exhaustive — seules celles mentionnées ici et dans la catégorie 12 ont été confirmées disponibles. À revisiter périodiquement (sondage de `/v2/schemas/ops/<nom>`) vu qu'Anytype ajoute des opérations sans annonce systématique.
+- **Opérations de patch non exposées comme outils** : `replace_text` (chercher/remplacer précis dans un bloc, sans repasser tout le texte — complémentaire à `update-block`), `set_properties` (set/add/unset sur les propriétés, plus riche que `update-object` v1), `set_cell` (cellule de tableau), `replace_subtree` (remplace un bloc et tous ses descendants d'un coup), `update_view`/`insert_view`/`move_view`/`delete_view` (gestion des vues de dataview), `add_items`/`remove_items` (équivalent v2 de `add-list-objects`/`remove-list-object`, sur le concept "collections").
+- **Nouveaux concepts v2 non explorés** : `collections` (généralisation probable des "lists" v1), `queries` (recherches/vues enregistrées avec le langage de filtre façon SQL/JQL), `widgets`, `discussions`, `schemas` auto-descriptifs (`GET /v2/schemas`, `GET /v2/schemas/{kind}`), `validate` (dry-run avant d'appliquer un changement).
+- Les endpoints REST v2 "classiques" (spaces, objects, properties, types, templates, members, files, chats) existent en parallèle de v1 avec potentiellement un format de réponse différent (AnyBlock v2) — pas comparés en détail à v1.
+
+Rien de tout ça n'est implémenté : évaluation à faire au cas par cas selon le besoin réel, pas par anticipation. À revisiter périodiquement (le spec évolue sans annonce systématique — ex: `insert_blocks`/`move_block` ajoutés entre septembre et novembre 2026).

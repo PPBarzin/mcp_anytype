@@ -263,6 +263,55 @@ class AnytypeClient:
         endpoint = f"/v2/spaces/{space_id}/objects/{object_id}"
         return await self._request("PATCH", endpoint, json={"ops": [op]})
 
+    async def insert_block(self, space_id: str, object_id: str, markdown: Optional[str] = None, blocks: Optional[List[Dict]] = None, after: Optional[str] = None, before: Optional[str] = None, inside: Optional[str] = None, position: Optional[str] = None) -> Dict[str, Any]:
+        """
+        [API v2 - pré-release] Insère un ou plusieurs nouveaux blocs dans un objet existant — la
+        vraie solution pour ajouter du contenu à une page (v1/update-object ne le permet pas).
+        Contenu : fournir markdown (parsé en blocs — titres, listes, cases à cocher, citations,
+        tableaux...) OU blocks (liste de blocs structurés), jamais les deux.
+        Position : au plus un de after/before/inside ; si aucun n'est fourni, insère en fin de
+        document (ou en début si position="first"). Utiliser get-object-blocks pour trouver les ids
+        de blocs existants servant d'ancre.
+        """
+        if (markdown is None) == (blocks is None):
+            return {"error": "Fournir exactement un des deux paramètres : markdown ou blocks (jamais les deux, jamais aucun)."}
+        if sum(x is not None for x in (after, before, inside)) > 1:
+            return {"error": "Fournir au plus un des trois paramètres de position : after, before ou inside."}
+        op: Dict[str, Any] = {"op": "insert_blocks"}
+        if markdown is not None:
+            op["markdown"] = markdown
+        else:
+            op["blocks"] = blocks
+        if after is not None:
+            op["after"] = after
+        if before is not None:
+            op["before"] = before
+        if inside is not None:
+            op["inside"] = inside
+        if position is not None:
+            op["position"] = position
+        endpoint = f"/v2/spaces/{space_id}/objects/{object_id}"
+        return await self._request("PATCH", endpoint, json={"ops": [op]})
+
+    async def delete_block(self, space_id: str, object_id: str, block_id: Optional[str] = None, match: Optional[str] = None, recursive: Optional[bool] = False) -> Dict[str, Any]:
+        """
+        [API v2 - pré-release] Supprime un bloc existant, ciblé par block_id ou par match (texte
+        exact actuel du bloc) — fournir exactement l'un des deux. Si le bloc a des blocs enfants,
+        recursive=true est requis pour les supprimer avec lui (sinon l'API refuse en indiquant le
+        nombre de descendants).
+        """
+        if (block_id is None) == (match is None):
+            return {"error": "Fournir exactement un des deux paramètres : block_id ou match (jamais les deux, jamais aucun)."}
+        op: Dict[str, Any] = {"op": "delete_block"}
+        if block_id is not None:
+            op["id"] = block_id
+        else:
+            op["match"] = match
+        if recursive:
+            op["recursive"] = True
+        endpoint = f"/v2/spaces/{space_id}/objects/{object_id}"
+        return await self._request("PATCH", endpoint, json={"ops": [op]})
+
     async def list_properties(self, space_id: str, offset: int = 0, limit: int = 100) -> Dict[str, Any]:
         return await self._call_tool_endpoint("list-properties", "GET", locals())
 
