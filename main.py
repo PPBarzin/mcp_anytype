@@ -81,7 +81,7 @@ app = FastAPI(
     lifespan=lambda _app: mcp_server.session_manager.run(),
 )
 
-# Transport SSE (legacy) : utilisé par ex. par Antigravity/Gemini
+# Transport SSE (legacy) : utilisé par ex. par Claude Code et les scripts Aurea
 app.mount("/sse", mcp_server.sse_app())
 
 # Transport Streamable HTTP : requis par ex. par Codex
