@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from mcp.server.fastmcp.tools.base import Tool
 from mcp.server.fastmcp.server import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from typing import Dict, Any, Optional, List
 import json
 import os
@@ -9,6 +10,10 @@ import sys
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from anytype_client import anytype_client
+from settings import settings, csv_list
+
+# Outils capables de générer une clé API Anytype : exposés seulement sur demande explicite.
+AUTH_TOOLS = {"create_auth_challenge", "create_api_key"}
 
 # --- Création de la liste d'outils à partir du client et du JSON ---
 
@@ -29,6 +34,8 @@ except (FileNotFoundError, json.JSONDecodeError) as e:
 
 for method_name, method_coro in client_methods:
     if method_name.startswith('_') or method_name == 'fetch':
+        continue
+    if method_name in AUTH_TOOLS and not settings.enable_auth_tools:
         continue
 
     tool_name_kebab = method_name.replace('_', '-')
@@ -59,6 +66,12 @@ mcp_server = FastMCP(
     tools=tools,
     sse_path="/",
     streamable_http_path="/",
+    # Protection DNS rebinding : refuse les Host/Origin inattendus (421/400).
+    transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=csv_list(settings.mcp_allowed_hosts),
+        allowed_origins=csv_list(settings.mcp_allowed_origins),
+    ),
 )
 
 app = FastAPI(
@@ -80,4 +93,4 @@ def read_root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(host="0.0.0.0", port=1621, reload=True, app="main:app")
+    uvicorn.run(host=settings.mcp_host, port=int(os.getenv("MCP_PORT", "1621")), reload=True, app="main:app")

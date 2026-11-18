@@ -9,7 +9,7 @@ L'intérêt de centraliser via ce serveur plutôt que de connecter chaque client
 
 ## Fonctionnalités
 
-Le serveur expose l'API Anytype sous forme de 58 outils, organisés en 12 catégories. **Couverture complète : 52/52 opérations du spec officiel v1** (2025-11-08), plus 5 outils ciblés sur l'**API v2** (pré-release) pour l'édition réelle de contenu (CRUD complet sur les blocs) — voir catégorie 12.
+Le serveur expose l'API Anytype sous forme de 58 outils, organisés en 12 catégories (**56 exposés par défaut** : les 2 outils d'authentification sont désactivés, voir [Sécurité](#sécurité)). **Couverture complète : 52/52 opérations du spec officiel v1** (2025-11-08), plus 5 outils ciblés sur l'**API v2** (pré-release) pour l'édition réelle de contenu (CRUD complet sur les blocs) — voir catégorie 12.
 
 **Note sur la suppression** : l'API Anytype "supprime" un objet/property/tag/type en l'archivant (`archived: true`), ce n'est pas une suppression définitive. Autre particularité observée : la réponse immédiate d'un appel `delete-*` peut encore afficher `archived: false` — un `get-*` juste après confirme le vrai état.
 
@@ -71,6 +71,8 @@ Convention `search` / `fetch` utile pour tout système qui suit le modèle "cher
 - **`get-template`**: Récupère un "template" spécifique.
 
 ### 9. Authentification
+⚠️ **Désactivés par défaut** (`ANYTYPE_MCP_ENABLE_AUTH_TOOLS=true` pour les exposer) : ils permettent à un agent de générer une nouvelle clé API Anytype.
+
 - **`create-auth-challenge`**: Déclenche l'affichage d'un code à 4 chiffres dans Anytype Desktop ; retourne un `challenge_id`. Nécessite une intervention humaine (lire le code affiché).
 - **`create-api-key`**: Échange un `challenge_id` + le code à 4 chiffres contre une nouvelle clé API. Permet de générer une clé sans passer par l'UI des paramètres.
 
@@ -110,7 +112,7 @@ Testé en conditions réelles : insertion via markdown et via blocs structurés,
 
 ## Transports exposés
 
-Le serveur écoute sur le port **1621** et expose le même jeu de 53 outils sur deux transports MCP en parallèle :
+Le serveur écoute sur le port **1621** et expose le même jeu d'outils sur deux transports MCP en parallèle :
 
 | Transport | Chemin | Utilisé par |
 |---|---|---|
@@ -131,6 +133,26 @@ Pour le développement local (hors Docker), ces variables peuvent être définie
 
 **Le token n'a pas de fallback codé en dur** : c'est volontaire, pour éviter qu'une vieille clé de test ne traîne dans le code et ne soit utilisée par erreur.
 
+Variables optionnelles liées à la sécurité (voir section suivante) :
+
+| Variable | Défaut | Rôle |
+|---|---|---|
+| `MCP_HOST` | `127.0.0.1` | Interface d'écoute. |
+| `MCP_PORT` | `1621` | Port d'écoute. |
+| `MCP_ALLOWED_HOSTS` | `127.0.0.1:*,localhost:*` | En-têtes `Host` acceptés sur `/sse/` et `/mcp/` (sinon `421`). |
+| `MCP_ALLOWED_ORIGINS` | `http://127.0.0.1:*,http://localhost:*` | En-têtes `Origin` acceptés (sinon `400`) ; une requête sans `Origin` (client CLI) passe. |
+| `ANYTYPE_MCP_ENABLE_AUTH_TOOLS` | `false` | Expose `create-auth-challenge` et `create-api-key`. |
+
+## Sécurité
+
+Le serveur n'a **pas d'authentification propre** : quiconque le joint peut lire, modifier et archiver le contenu Anytype avec le token du serveur. Sa protection repose donc sur trois mesures, actives par défaut :
+
+1. **Écoute en loopback (`127.0.0.1`) uniquement.** Avec `--network host`, écouter sur `0.0.0.0` exposerait Anytype à tout le réseau local (Wi-Fi compris), alors que l'API d'Anytype elle-même n'écoute que sur `127.0.0.1`. ⚠️ Ne pas passer `MCP_HOST=0.0.0.0` sans ajouter d'authentification devant.
+2. **Protection DNS rebinding** (`TransportSecuritySettings` du SDK `mcp`) : une page web ouverte dans le navigateur ne peut pas piloter le serveur local en se faisant passer pour `localhost` — les `Host`/`Origin` inattendus sont rejetés.
+3. **Outils de création de clé API désactivés** : un agent ne peut pas générer une nouvelle clé Anytype par lui-même.
+
+Pas de token côté serveur MCP : en loopback, seul un processus local de l'utilisateur peut le joindre, et ce processus pourrait de toute façon lire le fichier `secrets/`. À revoir si le serveur devait un jour être exposé hors de la machine.
+
 ## Installation et Lancement (avec Docker)
 
 Ce projet est conçu pour être déployé sous forme de conteneur Docker, sur la **même machine** que l'application Anytype Desktop (le container doit atteindre son API locale).
@@ -144,7 +166,7 @@ Ce projet est conçu pour être déployé sous forme de conteneur Docker, sur la
     ```bash
     --network host
     ```
-    (Le mapping `-p 1621:1621` est alors inutile/ignoré : le port 1621 du container devient directement celui de l'hôte.)
+    (Le port 1621 du container devient directement celui de l'hôte, **lié à `127.0.0.1` uniquement** — pas de `-p` à ajouter.)
 
 3.  **Démarrer le conteneur** — deux approches pour le token :
 
@@ -178,7 +200,7 @@ Ce projet est conçu pour être déployé sous forme de conteneur Docker, sur la
     docker logs anytype-mcp-server
     curl http://localhost:1621/
     ```
-    Vous devriez voir les messages de démarrage d'Uvicorn, puis un JSON `{"message": "Serveur MCP pour Anytype est en ligne avec 53 outils."}`.
+    Vous devriez voir les messages de démarrage d'Uvicorn, puis un JSON `{"message": "Serveur MCP pour Anytype est en ligne avec 56 outils."}`. `ss -ltnp | grep 1621` doit montrer `127.0.0.1:1621`, pas `0.0.0.0:1621`.
 
 ## Intégration avec des clients MCP
 

@@ -19,4 +19,5 @@ EXPOSE 1621
 # Étape 6 : Définir la commande pour lancer le serveur
 # Note: On n'utilise pas --reload dans une image Docker de production.
 # On utilise la variable d'environnement PORT si elle est définie, sinon 1621.
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "1621"]
+# Écoute en loopback par défaut (MCP_HOST) : avec --network host, 0.0.0.0 exposerait Anytype à tout le réseau local.
+CMD ["sh", "-c", "exec uvicorn main:app --host \"${MCP_HOST:-127.0.0.1}\" --port \"${MCP_PORT:-1621}\""]
