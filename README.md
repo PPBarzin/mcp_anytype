@@ -204,7 +204,9 @@ Ce projet est conçu pour être déployé sous forme de conteneur Docker, sur la
 
 ## Intégration avec des clients MCP
 
-Le serveur tourne une fois pour toutes (`http://localhost:1621`), et chaque client se déclare indépendamment. Rien à modifier côté serveur pour ajouter un nouveau client.
+Le serveur tourne une fois pour toutes (`http://localhost:1621`), et chaque client se déclare indépendamment. Rien à modifier côté serveur pour ajouter un nouveau client. Toujours déclarer `localhost` ou `127.0.0.1` dans l'URL : tout autre nom d'hôte est rejeté (`421`) par la protection DNS rebinding.
+
+**Après un redémarrage du container**, les sessions MCP (gardées en mémoire) sont perdues : un client resté ouvert boucle sur des `GET /mcp/` ou `DELETE /mcp/` en `400 Bad Request` (`No valid session ID provided`). Ce n'est pas un rejet de sécurité — fermer complètement le client et ouvrir une nouvelle session (un simple `/mcp reconnect` ne suffit pas toujours). Les `404` sur `/.well-known/oauth-*` au moment de la connexion sont aussi normaux : le client vérifie si une authentification OAuth est requise, puis continue sans.
 
 ### Claude Code
 
